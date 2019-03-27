@@ -55,6 +55,15 @@ plugin provided, which can be used like this:
 This command will generate ``helloworld_pb2.py`` and ``helloworld_grpc.py``
 files.
 
+Plugin parameters:
+
+- ``skip-empty`` - don't generate empty ``*_grpc.py`` file if corresponding
+  ``*.proto`` file doesn't contain service definitions:
+
+  .. code-block:: shell
+
+      --python_grpc_out=skip-empty:output/path
+
 Plugin, which implements ``--python_grpc_out`` option is available for
 ``protoc`` compiler as ``protoc-gen-python_grpc`` executable, which will be
 installed by ``setuptools`` into your ``PATH`` during installation of the

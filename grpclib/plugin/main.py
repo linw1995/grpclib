@@ -147,6 +147,8 @@ def main():
     with os.fdopen(sys.stdin.fileno(), 'rb') as inp:
         request = CodeGeneratorRequest.FromString(inp.read())
 
+    skip_empty = 'skip-empty' in request.parameter.split(',')
+
     types_map = {
         _type_name(pf, mt): '.'.join((_proto2py(pf.name), mt.name))
         for pf in request.proto_file
@@ -174,6 +176,9 @@ def main():
                 ))
             services.append(Service(service.name,
                                     methods=methods))
+
+        if not services and skip_empty:
+            continue
 
         out = response.file.add()
         out.name = file_to_generate.replace('.proto', SUFFIX)
