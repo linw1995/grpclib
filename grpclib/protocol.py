@@ -1,3 +1,5 @@
+import time
+import struct
 import socket
 import typing
 
@@ -153,6 +155,8 @@ class Connection:
     H2Connection <-> Transport communication
     """
     _transport = None
+    _ping_delay = 10
+    _ping_handle = None
 
     def __init__(self, connection: H2Connection, transport: Transport,
                  *, loop: AbstractEventLoop) -> None:
@@ -164,6 +168,15 @@ class Connection:
         self.write_ready.set()
 
         self.stream_close_waiter = Event(loop=self._loop)
+
+    def _ping(self):
+        data = struct.pack('!Q', int(time.monotonic() * 10 ** 6))
+        self._connection.ping(data)
+        self.flush()
+        self._ping_handle = self._loop.call_later(self._ping_delay, self._ping)
+
+    def initialize(self):
+        self._ping()
 
     def feed(self, data):
         return self._connection.receive_data(data)
@@ -189,7 +202,12 @@ class Connection:
             self._transport.write(data)
 
     def close(self):
-        if self._transport:
+        if self._ping_handle is not None:
+            self._ping_handle.cancel()
+            print('cancelled')
+            del self._ping_handle
+
+        if self._transport is not None:
             self._transport.close()
             # remove cyclic references to improve memory usage
             del self._transport
@@ -503,7 +521,9 @@ class EventsProcessor:
         pass
 
     def process_ping_ack_received(self, event: PingAckReceived):
-        pass
+        timestamp, = struct.unpack('!Q', event.ping_data)
+        delay = int(time.monotonic() * 10 ** 9 - timestamp * 1000)
+        print('Delay {} ns'.format(delay))
 
 
 class H2Protocol(Protocol):
@@ -525,6 +545,7 @@ class H2Protocol(Protocol):
         h2_conn.initiate_connection()
 
         self.connection = Connection(h2_conn, transport, loop=self.loop)
+        self.connection.initialize()
         self.connection.flush()
 
         self.processor = EventsProcessor(self.handler, self.connection)
